@@ -10,21 +10,7 @@
 
 #include <stdint.h>
 
-typedef struct __image_stream {
-
-	uint32_t width;
-	uint32_t height;
-
-	uint8_t* channel_red;
-	uint8_t* channel_green;
-	uint8_t* channel_blue;
-
-} bmp_context_t;
-
-// only used for reading bmp file
-
 #define BMP_HEADER_SIZE 54
-
 typedef struct __bmp_header {
 
 	uint16_t padding;
@@ -47,7 +33,19 @@ typedef struct __bmp_header {
 
 } bmp_header_t;
 
+typedef struct __image_stream {
 
-void init_bmp_context (bmp_context_t* context, char* filepath);
+	bmp_header_t header;
+
+	uint8_t* channel_red;
+	uint8_t* channel_green;
+	uint8_t* channel_blue;
+
+} bmp_context_t;
+
+// read from bmp source
+void init_bmp_context (bmp_context_t* context, char* source);
 void deinit_bmp_context (bmp_context_t* context);
 
+// save to bmp grayscale image
+void bmp_write_grayscale (bmp_context_t* contxt, char* dest);

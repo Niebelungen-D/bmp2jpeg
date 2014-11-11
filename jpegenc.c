@@ -19,7 +19,11 @@
 #include <stdint.h>
 #include <math.h>
 
+#include <endian.h>
+
+#include "bmp.h"
 #include "jpegenc.h"
+
 
 // to index zigzag scanning conveniently
 static const uint8_t zigzag_index[] = {
@@ -58,11 +62,11 @@ static const uint8_t std_ac_luminance_values[] = {
 };
 
 // Huffman tables
-static const unsigned short YDC_HT[256][2] = { 
+static const uint16_t huffman_dc_y[256][2] = { 
 	{0,2},{2,3},{3,3},{4,3},{5,3},{6,3},
 	{14,4},{30,5},{62,6},{126,7},{254,8},{510,9}
 };
-static const unsigned short YAC_HT[256][2] = { 
+static const uint16_t huffman_ac_y[256][2] = { 
 	{10,4},{0,2},{1,2},{4,3},{11,4},{26,5},{120,7},{248,8},{1014,10},{65410,16},{65411,16},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
 	{12,4},{27,5},{121,7},{502,9},{2038,11},{65412,16},{65413,16},{65414,16},{65415,16},{65416,16},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
 	{28,5},{249,8},{1015,10},{4084,12},{65417,16},{65418,16},{65419,16},{65420,16},{65421,16},{65422,16},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -82,7 +86,7 @@ static const unsigned short YAC_HT[256][2] = {
 };
 
 // quantization table
-static const int YQT[] = {
+static const uint32_t quzntization_table_y[] = {
 	16,11,10,16,24,40,51,61,
 	12,12,14,19,26,58,60,55,
 	14,13,16,24,40,57,69,56,
@@ -141,67 +145,145 @@ static void jpeg_calc_bits (int32_t val, uint16_t bits[2])
 	bits[0] = val & ((1 << bits[1]) - 1);
 }
 
-// header for grayscale image
-static void jpeg_write_headers (bmp_context_t* context, FILE* fp)
+static void jpeg_dct1 (float* d0, float* d1, float* d2, float* d3, 
+	float* d4, float* d5, float* d6, float* d7)
 {
-	// SOI, APP0 JFIF
-	static const uint8_t soi_app0_header[] = {
-		0xFF,0xD8,0xFF,0xE0,0,0x10,'J','F','I','F',0,1,1,0,0,1,0,1,0,0
-	};
-	fwrite (soi_app0_header, sizeof (soi_app0_header), 1, fp);
+	float tmp0 = (*d0) + (*d7);
+	float tmp7 = (*d0) - (*d7);
+	float tmp1 = (*d1) + (*d6);
+	float tmp6 = (*d1) - (*d6);
+	float tmp2 = (*d2) + (*d5);
+	float tmp5 = (*d2) - (*d5);
+	float tmp3 = (*d3) + (*d4);
+	float tmp4 = (*d3) - (*d4);
 
-	// DQT <marker> <length> 
-	static const uint8_t dqt_header[] = {0xFF,0xDB,0x00,0x84};
-	fwrite (dqt_header, sizeof (dqt_header), 1, fp);
-	// DQT table
-	fputc (0, fp) // <ID>
-	fwrite (YTable, sizeof (YTable), 1, fp); // Table
+	// even part
+	float tmp10 = tmp0 + tmp3;
+	float tmp13 = tmp0 - tmp3;
+	float tmp11 = tmp1 + tmp2;
+	float tmp12 = tmp1 - tmp2;
 
-	// SOF
-	static const uint8_t sof_header = {0xFF,0xC0,0x00,0x11};
-	fwrite (sof_header, sizeof (sof_header), 1, fp);
-	fputc (0x08, fp); // sampling bit
-	// SOF-height
-	fputc ((uint8_t)(context->bmp_height >> 8), fp);
-	fputc ((uint8_t)(context->bmp_height && 0xFF), fp);
-	// SOF-width
-	fputc ((uint8_t)(context->bmp_width >> 8), fp);
-	fputc ((uint8_t)(context->bmp_width && 0xFF), fp);
-	// SOF-components
-	fputc (0x01, fp); // only Y(luminance)
-	// SOF-component info
-	fputc (0x01, fp); // ID of Y
-	fputc (0x11, fp); // sampling freq.
-	fputc (0x00, fp); // ID of quantization table
+	(*d0) = tmp10 + tmp11;
+	(*d4) = tmp10 - tmp11;
 
-	// DHT
-	static const uint8_t dht_header = {0xFF,0xC4,0x01,0xA2};
-	fwrite (dht_header, sizeof (dht_header), 1, fp);
-	// DHT-huffman-codelength-counter-symbols DC luminance
-	fputc (0x00, fp); // <DC:Table-ID-0>
-	fwrite (std_dc_luminance_nrcodes+1, sizeof (std_dc_luminance_nrcodes)-1, 1, fp);
-	fwrite (std_dc_luminance_values, sizeof (std_dc_luminance_values), 1, fp);
-	// DHT-huffman-codelength-counter-symbols AC luminance
-	fputc (0x10, fp); // <AC:Table-ID-0>
-	fwrite (std_ac_luminance_nrcodes+1, sizeof (std_ac_luminance_nrcodes)-1, 1, fp);
-	fwrite (std_ac_luminance_values, sizeof (std_ac_luminance_values), 1, fp);
+	float z1 = (tmp12 + tmp13) * 0.707106781f;
+	(*d2) = tmp13 + z1;
+	(*d6) = tmp13 - z1;
 
-	// SOS
-	static const uint8_t sos_header = {0xFF,0xDA,0x00,0x0C};
-	fwrite (sos_header, sizeof (sos_header), 1, fp);
-	// SOS-component-count
-	fputc (0x01, fp);
-	// SOS-scan-description
-	fputc (0x01, fp); // component id
-	fputc (0x00, fp); // <DC-huffman-ID:AC-huffman-ID>
-	// SOS-DCT-optimize-value
-	static const uint8_t sos_dct_val = {0x00,0x3F,0x00};
-	fwrite (sos_dct_val, sizeof (sos_dct_val), 1, fp);
+	// odd part
+	tmp10 = tmp4 + tmp5;
+	tmp11 = tmp5 + tmp6;
+	tmp12 = tmp6 + tmp7;
+
+	float z5 = (tmp10 - tmp12) * 0.382683433f;
+	float z2 = tmp10 * 0.541196100f + z5;
+	float z4 = tmp12 * 1.306562965f + z5;
+	float z3 = tmp11 * 0.707106781f;
+
+	float z11 = tmp7 + z3;
+	float z13 = tmp7 - z3;
+
+	(*d5) = z13 + z2;
+	(*d3) = z13 - z2;
+	(*d1) = z11 + z4;
+	(*d7) = z11 - z4;
+}
+
+static int32_t jpeg_process_dct_unit (uint32_t* bit_buffer, 
+	uint32_t* num_of_bits, float* dct_unit, float* fast_dct_table, 
+	int32_t dc_value, const uint16_t huffman_dc[256][2], 
+	const uint16_t huffman_ac[256][2], FILE* fp)
+{
+	uint32_t i;
+
+	const uint16_t eob[2] = {huffman_ac[0x00][0], huffman_ac[0x00][1]};
+	const uint16_t m16_zeroes[2] = {huffman_ac[0xF0][0], huffman_ac[0xF0][1]};
+
+	// dct rows
+	uint32_t data_offset;
+	for (data_offset = 0; data_offset < 64; data_offset += 8) {
+		jpeg_dct1 (dct_unit + data_offset, dct_unit + data_offset + 1, 
+			dct_unit + data_offset + 2, dct_unit + data_offset + 3, 
+			dct_unit + data_offset + 4, dct_unit + data_offset + 5, 
+			dct_unit + data_offset + 6, dct_unit + data_offset + 7);
+	}
+
+	// dct colums
+	for (data_offset = 0; data_offset < 8; data_offset++) {
+		jpeg_dct1 (dct_unit + data_offset, dct_unit + data_offset + 8,
+			dct_unit + data_offset + 16, dct_unit + data_offset + 24,
+			dct_unit + data_offset + 32, dct_unit + data_offset + 40,
+			dct_unit + data_offset + 48, dct_unit + data_offset + 56);
+	}
+
+	// quantize/descale/zigzag the coefficients
+	int32_t unit_out[64];
+	for (i=0; i<64; i++) {
+		float val = dct_unit[i] * fast_dct_table[i];
+		unit_out[zigzag_index[i]] = 
+			(int32_t)((val < 0) ? ceilf (val - 0.5f) : floorf (val + 0.5f));
+	}
+
+	// -------------------------------------------------------------------------
+	// experiments here
+	// -------------------------------------------------------------------------
+
+
+	// encode dc value
+	int32_t diff = unit_out[0] - dc_value;
+	if (diff == 0) {
+		jpeg_write_bits (bit_buffer, num_of_bits, huffman_dc[0], fp);
+	} else {
+		uint16_t bits[2];
+		jpeg_calc_bits (diff, bits);
+		jpeg_write_bits (bit_buffer, num_of_bits, huffman_dc[bits[1]], fp);
+		jpeg_write_bits (bit_buffer, num_of_bits, bits, fp);
+	}
+
+	// encode ac
+	uint32_t end_0_pos = 63;
+	while ((end_0_pos > 0) && (unit_out[end_0_pos] == 0)) {
+		end_0_pos--;
+	}
+	
+	// end_0_pos = first element in reverse order != 0
+	if (end_0_pos == 0) {
+		jpeg_write_bits (bit_buffer, num_of_bits, eob, fp);
+		return unit_out[0];
+	}
+
+	for (i=1; i<=end_0_pos; i++) {
+		uint32_t start_pos = i;
+		while ((unit_out[i] == 0) && (i <= end_0_pos)) {
+			i++;
+		}
+
+		uint32_t nr_zeroes = i - start_pos;
+		if (nr_zeroes >= 16) {
+			uint32_t lng = nr_zeroes >> 4, nr_marker;
+			for (nr_marker = 1; nr_marker <= lng; nr_marker++) {
+				jpeg_write_bits (bit_buffer, num_of_bits, m16_zeroes, fp);
+			}
+			nr_zeroes &= 15;
+		}
+
+		uint16_t bits[2];
+		jpeg_calc_bits (unit_out[i], bits);
+		jpeg_write_bits (bit_buffer, num_of_bits, 
+			huffman_ac[(nr_zeroes << 4) + bits[1]], fp);
+		jpeg_write_bits (bit_buffer, num_of_bits, bits, fp);
+	}
+
+	if (end_0_pos != 63) {
+		jpeg_write_bits (bit_buffer, num_of_bits, eob, fp);
+	}
+
+	return unit_out[0];
 }
 
 int jpeg_write_grayscale (bmp_context_t* context, const char* dest)
 {
-	uint32_t i, j, k, row, col;
+	uint32_t i, j, k, row, col, x, y;
 
 	if (context == NULL) {
 		return -1;
@@ -217,23 +299,131 @@ int jpeg_write_grayscale (bmp_context_t* context, const char* dest)
 		(5000 / JPEG_QUALITY_PERCENT) : (200 - JPEG_QUALITY_PERCENT * 2);
 
 	// Luminance table of quality applied quantization table
-	uint8_t YTable[64];
+	uint8_t y_table[64];
 	for (i=0; i<64; i++) {
-		uint32_t yti = (YQT[i] * quality + 50) / 100;
-		YTable[zigzag_index[i]] = (yti < 1) ? 1 : ((yti > 255) ? 255 : yti);
+		uint32_t yti = (quzntization_table_y[i] * quality + 50) / 100;
+		y_table[zigzag_index[i]] = (yti < 1) ? 1 : ((yti > 255) ? 255 : yti);
 	}
 
 	// fast dct table
-	float fdtabl_y[64];
-	for (row = 0, k=0; row<8; row++) {
-		for (col=0; col<8; col++, k++) {
-			fdtabl_y = 1 / (YTable[zigzag_index[k]] * aasf[row] * aasf[col]);
+	float fast_dct_table_y[64];
+	for (row = 0, k = 0; row < 8; row++) {
+		for (col = 0; col < 8; col++, k++) {
+			fast_dct_table_y[k] = 
+				1 / (y_table[zigzag_index[k]] * aasf[row] * aasf[col]);
 		}
 	}
 
 	// write headers
-	jpeg_write_headers (context, fp);
+	uint32_t width = context->header.bmp_width;
+	uint32_t height = context->header.bmp_height;
+
+	// SOI, APP0 JFIF
+	static const uint8_t soi_app0_header[] = {
+		0xFF,0xD8,0xFF,0xE0,0,0x10,'J','F','I','F',0,1,1,0,0,1,0,1,0,0
+	};
+	fwrite (soi_app0_header, sizeof (soi_app0_header), 1, fp);
+
+	// DQT <marker> <length> 
+	//static const uint8_t dqt_header[] = {0xFF,0xDB,0x00,0x84};
+	static const uint8_t dqt_header[] = {0xFF,0xDB,0x00,0x42}; // +2???
+	fwrite (dqt_header, sizeof (dqt_header), 1, fp);
+	// DQT table
+	fputc (0, fp); // <ID>
+	fwrite (y_table, sizeof (y_table), 1, fp); // Table
+
+	// SOF
+	static const uint8_t sof_header[] = {0xFF,0xC0,0x00,0x11};
+	fwrite (sof_header, sizeof (sof_header), 1, fp);
+	fputc (0x08, fp); // sampling bit
+	// SOF-height
+	fputc ((uint8_t)(height >> 8), fp);
+	fputc ((uint8_t)(height && 0xFF) - 1, fp);
+	// SOF-width
+	fputc ((uint8_t)(width >> 8), fp);
+	fputc ((uint8_t)(width && 0xFF) - 1, fp);
+	// SOF-components
+	fputc (0x01, fp); // only Y(luminance)
+	// SOF-component info
+	fputc (0x01, fp); // ID of Y
+	fputc (0x11, fp); // sampling freq.
+	fputc (0x00, fp); // ID of quantization table
+
+	// DHT
+	//static const uint8_t dht_header[] = {0xFF,0xC4,0x01,0xA2};
+	static const uint8_t dht_header[] = {0xFF, 0xC4, 0x00, 0xD0}; //208 + 1
+	fwrite (dht_header, sizeof (dht_header), 1, fp);
+	// DHT-huffman-codelength-counter-symbols DC luminance
+	fputc (0x00, fp); // <DC:Table-ID-0>
+	fwrite (std_dc_luminance_nrcodes+1, sizeof (std_dc_luminance_nrcodes)-1, 1, fp);
+	fwrite (std_dc_luminance_values, sizeof (std_dc_luminance_values), 1, fp);
+	// DHT-huffman-codelength-counter-symbols AC luminance
+	fputc (0x10, fp); // <AC:Table-ID-0>
+	fwrite (std_ac_luminance_nrcodes+1, sizeof (std_ac_luminance_nrcodes)-1, 1, fp);
+	fwrite (std_ac_luminance_values, sizeof (std_ac_luminance_values), 1, fp);
+
+	// SOS
+	//static const uint8_t sos_header[] = {0xFF,0xDA,0x00,0x0C};
+	static const uint8_t sos_header[] = {0xFF,0xDA,0x00,0x08};
+	fwrite (sos_header, sizeof (sos_header), 1, fp);
+	// SOS-component-count
+	fputc (0x01, fp);
+	// SOS-scan-description
+	fputc (0x01, fp); // component id
+	fputc (0x00, fp); // <DC-huffman-ID:AC-huffman-ID>
+	// SOS-DCT-optimize-value
+	static const uint8_t sos_dct_val[] = {0x00,0x3F,0x00};
+	fwrite (sos_dct_val, sizeof (sos_dct_val), 1, fp);
+
 
 	// encode 8x8 macroblocks
-	
+	uint32_t bit_buffer = 0, num_of_bits = 0, pos=0;
+	int32_t dc_y = 0; // dc component of Y
+
+	// for blocks
+	for (y = 0; y < height; y += 8) {
+		for (x = 0; x < width; x += 8) {
+
+			float dct_unit_y[64]; // 8x8 dct unit of Y
+
+			// compute dct unit
+			for (row = y, pos = 0; row < y+8; row++) {
+				for (col = x; col < x+8; col++, pos++) {
+					int32_t p = row * width + col;
+					if (row >= height) {
+						p -= width * (row + 1 - height);
+					}
+					if (col >= width) {
+						p -= (col + 1 - width);
+					}
+
+					float r = context->channel_red[p];
+					float g = context->channel_green[p];
+					float b = context->channel_blue[p];
+
+					// rgb to y(luminance)
+					dct_unit_y[pos] = +0.29900f * r
+									  +0.58700f * g
+									  +0.11400f * b 
+									  - 128;
+				}
+			}
+
+			// encode and write
+			dc_y = jpeg_process_dct_unit (&bit_buffer, &num_of_bits, dct_unit_y, 
+				fast_dct_table_y, dc_y, huffman_dc_y, huffman_ac_y, fp);
+		}
+	}
+
+	// bit alignment of the eoi marker
+	static const uint16_t filler[] = {0x7F, 0x07};
+	jpeg_write_bits (&bit_buffer, &num_of_bits, filler, fp);
+
+	// EOI
+	fputc (0xFF, fp);
+	fputc (0xD9, fp);
+
+
+	fclose (fp);
+	return 0;
 }

@@ -12,6 +12,8 @@
 #ifndef __jpegenc_h__
 #define __jpegenc_h__
 
+#include "bmp.h"
+
 #define JPEG_QUALITY_PERCENT 100
 
 int jpeg_write_grayscale (bmp_context_t* context, const char* dest);

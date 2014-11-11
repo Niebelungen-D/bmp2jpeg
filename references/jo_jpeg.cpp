@@ -274,23 +274,19 @@ bool jo_write_jpg(const char *filename, const void *data, int width, int height,
 	fwrite(YTable, sizeof(YTable), 1, fp);
 	putc(1, fp);
 	fwrite(UVTable, sizeof(UVTable), 1, fp);
-	const unsigned char head1[] = { 0xFF,0xC0,0,0x11,8,height>>8,height&0xFF,width>>8,width&0xFF,
-		3,1,0x11,0,2,0x11,1,3,0x11,1,0xFF,0xC4,0x01,0xA2,0 };
+	const unsigned char head1[] = { 0xFF,0xC0,0,0x11,8,height>>8,height&0xFF,width>>8,width&0xFF,3,1,0x11,0,2,0x11,1,3,0x11,1,0xFF,0xC4,0x01,0xA2,0 };
 	fwrite(head1, sizeof(head1), 1, fp);
 	fwrite(std_dc_luminance_nrcodes+1, sizeof(std_dc_luminance_nrcodes)-1, 1, fp);
 	fwrite(std_dc_luminance_values, sizeof(std_dc_luminance_values), 1, fp);
-	
 	putc(0x10, fp); // HTYACinfo
 	fwrite(std_ac_luminance_nrcodes+1, sizeof(std_ac_luminance_nrcodes)-1, 1, fp);
 	fwrite(std_ac_luminance_values, sizeof(std_ac_luminance_values), 1, fp);
-
 	putc(1, fp); // HTUDCinfo
 	fwrite(std_dc_chrominance_nrcodes+1, sizeof(std_dc_chrominance_nrcodes)-1, 1, fp);
 	fwrite(std_dc_chrominance_values, sizeof(std_dc_chrominance_values), 1, fp);
 	putc(0x11, fp); // HTUACinfo
 	fwrite(std_ac_chrominance_nrcodes+1, sizeof(std_ac_chrominance_nrcodes)-1, 1, fp);
 	fwrite(std_ac_chrominance_values, sizeof(std_ac_chrominance_values), 1, fp);
-
 	static const unsigned char head2[] = { 0xFF,0xDA,0,0xC,3,1,0,2,0x11,3,0x11,0,0x3F,0 };
 	fwrite(head2, sizeof(head2), 1, fp);
 

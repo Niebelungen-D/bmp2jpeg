@@ -11,6 +11,7 @@
 #include <stdint.h>
 
 #include "bmp.h"
+#include "jpegenc.h"
 
 int main (int argc, char** argv)
 {
@@ -18,6 +19,7 @@ int main (int argc, char** argv)
 
 	init_bmp_context (&bmp, "iutest512.bmp");
 	bmp_write_grayscale (&bmp, "grayout.bmp");
+	jpeg_write_grayscale (&bmp, "grayout.jpeg");
 	deinit_bmp_context (&bmp);
 
 	return 0;

@@ -17,7 +17,8 @@ int main (int argc, char** argv)
 	bmp_context_t bmp;
 
 	init_bmp_context (&bmp, "iutest512.bmp");
-	//bmp_write_grayscale (&bmp, "grayout.bmp");
+	bmp_write_grayscale (&bmp, "grayout.bmp");
+	deinit_bmp_context (&bmp);
 
 	return 0;
 }

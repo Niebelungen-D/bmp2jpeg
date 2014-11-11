@@ -8,3 +8,12 @@
 //  Copyright (c) 2014??Jaehwan Lee. All rights reserved.
 //
 
+
+#ifndef __jpegenc_h__
+#define __jpegenc_h__
+
+#define JPEG_QUALITY_PERCENT 100
+
+int jpeg_write_grayscale (bmp_context_t* context, const char* dest);
+
+#endif //__jpegenc_h__

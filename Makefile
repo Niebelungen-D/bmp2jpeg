@@ -5,7 +5,7 @@ CXX = g++
 PROGRAM = bmp2jpeg.bin
 CFLAGS = -g
 
-LDFLAGS = -lpthread
+LDFLAGS = -lm
 INCLUDES = 
 
 SRCS = main.c \

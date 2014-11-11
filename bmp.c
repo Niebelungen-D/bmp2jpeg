@@ -14,7 +14,7 @@
 #include "bmp.h"
 
 
-void init_bmp_context (bmp_context_t* context, char* source)
+void init_bmp_context (bmp_context_t* context, const char* source)
 {
 	uint32_t i, j;
 	FILE* fp = NULL;
@@ -97,7 +97,7 @@ static uint8_t rgb_to_gray (uint8_t r, uint8_t g, uint8_t b)
 					0.0722f * (float)b));
 }
 
-void bmp_write_grayscale (bmp_context_t* context, char* dest)
+void bmp_write_grayscale (bmp_context_t* context, const char* dest)
 {
 	int i, j;
 	FILE* fp = NULL;

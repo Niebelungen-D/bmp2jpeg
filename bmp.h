@@ -8,6 +8,9 @@
 //  Copyright (c) 2014??Jaehwan Lee. All rights reserved.
 //
 
+#ifndef __bmp_h__
+#define __bmp_h__
+
 #include <stdint.h>
 
 #define BMP_HEADER_SIZE 54
@@ -44,8 +47,10 @@ typedef struct __image_stream {
 } bmp_context_t;
 
 // read from bmp source
-void init_bmp_context (bmp_context_t* context, char* source);
+void init_bmp_context (bmp_context_t* context, const char* source);
 void deinit_bmp_context (bmp_context_t* context);
 
 // save to bmp grayscale image
-void bmp_write_grayscale (bmp_context_t* contxt, char* dest);
+void bmp_write_grayscale (bmp_context_t* context, const char* dest);
+
+#endif //__bmp_h__

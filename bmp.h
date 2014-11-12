@@ -53,4 +53,7 @@ void deinit_bmp_context (bmp_context_t* context);
 // save to bmp grayscale image
 void bmp_write_grayscale (bmp_context_t* context, const char* dest);
 
+// convert rgb channels to grayscale
+void bmp_convert_grayscale (bmp_context_t* context);
+
 #endif //__bmp_h__

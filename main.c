@@ -17,8 +17,14 @@ int main (int argc, char** argv)
 {
 	bmp_context_t bmp;
 
-	init_bmp_context (&bmp, "iutest512.bmp");
-	bmp_write_grayscale (&bmp, "grayout.bmp");
+	if (argc != 2) {
+		fprintf (stderr, "Usage: %s bitmap_image.bmp\n", argv[0]);
+		return 1;
+	}
+
+	init_bmp_context (&bmp, argv[1]);
+	//bmp_write_grayscale (&bmp, "grayout.bmp");
+	bmp_convert_grayscale (&bmp);
 	jpeg_write_grayscale (&bmp, "grayout.jpeg");
 	deinit_bmp_context (&bmp);
 

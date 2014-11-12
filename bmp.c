@@ -32,10 +32,12 @@ void init_bmp_context (bmp_context_t* context, const char* source)
 	context->header = header;
 
 	// check size
+	/*
 	if (header.bmp_width != 512 || header.bmp_height != 512) {
 		fprintf (stderr, "bitmap must be 512x512\n");
 		exit (1);
 	}
+	*/
 
 	// check color components
 	if (header.bpp != 24) {
@@ -135,4 +137,26 @@ void bmp_write_grayscale (bmp_context_t* context, const char* dest)
 	// release resources
 	fclose (fp);
 	free (scanline);
+}
+
+void bmp_convert_grayscale (bmp_context_t* context)
+{
+	uint32_t i, j;
+	uint32_t width = context->header.bmp_width;
+	uint32_t height = context->header.bmp_height;
+
+	for (i=0; i<height; i++) {
+
+		uint32_t h_idx = (height - i - 1) * width;
+
+		for (j=0; j<width; j++) {
+			uint8_t gray = rgb_to_gray (context->channel_red[h_idx + j],
+										context->channel_green[h_idx + j],
+										context->channel_blue[h_idx + j]);
+
+			context->channel_red[h_idx + j] = gray;
+			context->channel_green[h_idx + j] = gray;
+			context->channel_blue[h_idx + j] = gray;
+		}
+	}
 }

@@ -7,7 +7,6 @@
 //    - http://jonolick.com
 //  
 //  Bitmap context(RGB) input
-//  luminance component(grayscale) output
 //
 //  Created by ubuntu-vm on 2014. 11. 11..
 //  Copyright (c) 2014??Jaehwan Lee. All rights reserved.
@@ -34,7 +33,7 @@ static const uint8_t zigzag_index[] = {
 	59, 61, 35, 36, 48, 49, 57, 58, 62, 63 
 };
 
-// encoding constancs
+// encoding constancs Y
 static const uint8_t std_dc_luminance_nrcodes[] = {
 	0,0,1,5,1,1,1,1,1,1,0,0,0,0,0,0,0
 };
@@ -60,8 +59,34 @@ static const uint8_t std_ac_luminance_values[] = {
 	0xe3,0xe4,0xe5,0xe6,0xe7,0xe8,0xe9,0xea,0xf1,0xf2,0xf3,0xf4,
 	0xf5,0xf6,0xf7,0xf8,0xf9,0xfa
 };
+// encoding constancs UV
+static const uint8_t std_dc_chrominance_nrcodes[] = {
+	0,0,3,1,1,1,1,1,1,1,1,1,0,0,0,0,0
+};
+static const uint8_t std_dc_chrominance_values[] = {
+	0,1,2,3,4,5,6,7,8,9,10,11
+};
+static const uint8_t std_ac_chrominance_nrcodes[] = {
+	0,0,2,1,2,4,4,3,4,7,5,4,4,0,1,2,0x77
+};
+static const unsigned char std_ac_chrominance_values[] = {
+	0x00,0x01,0x02,0x03,0x11,0x04,0x05,0x21,0x31,0x06,0x12,0x41,
+	0x51,0x07,0x61,0x71,0x13,0x22,0x32,0x81,0x08,0x14,0x42,0x91,
+	0xa1,0xb1,0xc1,0x09,0x23,0x33,0x52,0xf0,0x15,0x62,0x72,0xd1,
+	0x0a,0x16,0x24,0x34,0xe1,0x25,0xf1,0x17,0x18,0x19,0x1a,0x26,
+	0x27,0x28,0x29,0x2a,0x35,0x36,0x37,0x38,0x39,0x3a,0x43,0x44,
+	0x45,0x46,0x47,0x48,0x49,0x4a,0x53,0x54,0x55,0x56,0x57,0x58,
+	0x59,0x5a,0x63,0x64,0x65,0x66,0x67,0x68,0x69,0x6a,0x73,0x74,
+	0x75,0x76,0x77,0x78,0x79,0x7a,0x82,0x83,0x84,0x85,0x86,0x87,
+	0x88,0x89,0x8a,0x92,0x93,0x94,0x95,0x96,0x97,0x98,0x99,0x9a,
+	0xa2,0xa3,0xa4,0xa5,0xa6,0xa7,0xa8,0xa9,0xaa,0xb2,0xb3,0xb4,
+	0xb5,0xb6,0xb7,0xb8,0xb9,0xba,0xc2,0xc3,0xc4,0xc5,0xc6,0xc7,
+	0xc8,0xc9,0xca,0xd2,0xd3,0xd4,0xd5,0xd6,0xd7,0xd8,0xd9,0xda,
+	0xe2,0xe3,0xe4,0xe5,0xe6,0xe7,0xe8,0xe9,0xea,0xf2,0xf3,0xf4,
+	0xf5,0xf6,0xf7,0xf8,0xf9,0xfa
+};
 
-// Huffman tables
+// Huffman tables Y
 static const uint16_t huffman_dc_y[256][2] = { 
 	{0,2},{2,3},{3,3},{4,3},{5,3},{6,3},
 	{14,4},{30,5},{62,6},{126,7},{254,8},{510,9}
@@ -84,9 +109,33 @@ static const uint16_t huffman_ac_y[256][2] = {
 	{65515,16},{65516,16},{65517,16},{65518,16},{65519,16},{65520,16},{65521,16},{65522,16},{65523,16},{65524,16},{0,0},{0,0},{0,0},{0,0},{0,0},
 	{2041,11},{65525,16},{65526,16},{65527,16},{65528,16},{65529,16},{65530,16},{65531,16},{65532,16},{65533,16},{65534,16},{0,0},{0,0},{0,0},{0,0},{0,0}
 };
+// Huffman tables UV
+static const unsigned short huffman_dc_uv[256][2] = { 
+	{0,2},{1,2},{2,2},{6,3},{14,4},{30,5},{62,6},
+	{126,7},{254,8},{510,9},{1022,10},{2046,11}
+};
+static const unsigned short huffman_ac_uv[256][2] = { 
+	{0,2},{1,2},{4,3},{10,4},{24,5},{25,5},{56,6},{120,7},{500,9},{1014,10},{4084,12},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
+	{11,4},{57,6},{246,8},{501,9},{2038,11},{4085,12},{65416,16},{65417,16},{65418,16},{65419,16},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
+	{26,5},{247,8},{1015,10},{4086,12},{32706,15},{65420,16},{65421,16},{65422,16},{65423,16},{65424,16},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
+	{27,5},{248,8},{1016,10},{4087,12},{65425,16},{65426,16},{65427,16},{65428,16},{65429,16},{65430,16},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
+	{58,6},{502,9},{65431,16},{65432,16},{65433,16},{65434,16},{65435,16},{65436,16},{65437,16},{65438,16},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
+	{59,6},{1017,10},{65439,16},{65440,16},{65441,16},{65442,16},{65443,16},{65444,16},{65445,16},{65446,16},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
+	{121,7},{2039,11},{65447,16},{65448,16},{65449,16},{65450,16},{65451,16},{65452,16},{65453,16},{65454,16},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
+	{122,7},{2040,11},{65455,16},{65456,16},{65457,16},{65458,16},{65459,16},{65460,16},{65461,16},{65462,16},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
+	{249,8},{65463,16},{65464,16},{65465,16},{65466,16},{65467,16},{65468,16},{65469,16},{65470,16},{65471,16},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
+	{503,9},{65472,16},{65473,16},{65474,16},{65475,16},{65476,16},{65477,16},{65478,16},{65479,16},{65480,16},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
+	{504,9},{65481,16},{65482,16},{65483,16},{65484,16},{65485,16},{65486,16},{65487,16},{65488,16},{65489,16},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
+	{505,9},{65490,16},{65491,16},{65492,16},{65493,16},{65494,16},{65495,16},{65496,16},{65497,16},{65498,16},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
+	{506,9},{65499,16},{65500,16},{65501,16},{65502,16},{65503,16},{65504,16},{65505,16},{65506,16},{65507,16},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
+	{2041,11},{65508,16},{65509,16},{65510,16},{65511,16},{65512,16},{65513,16},{65514,16},{65515,16},{65516,16},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
+	{16352,14},{65517,16},{65518,16},{65519,16},{65520,16},{65521,16},{65522,16},{65523,16},{65524,16},{65525,16},{0,0},{0,0},{0,0},{0,0},{0,0},
+	{1018,10},{32707,15},{65526,16},{65527,16},{65528,16},{65529,16},{65530,16},{65531,16},{65532,16},{65533,16},{65534,16},{0,0},{0,0},{0,0},{0,0},{0,0}
+};
+
 
 // quantization table
-static const uint32_t quzntization_table_y[] = {
+static const uint32_t quantization_table_y[] = {
 	16,11,10,16,24,40,51,61,
 	12,12,14,19,26,58,60,55,
 	14,13,16,24,40,57,69,56,
@@ -95,6 +144,16 @@ static const uint32_t quzntization_table_y[] = {
 	24,35,55,64,81,104,113,92,
 	49,64,78,87,103,121,120,101,
 	72,92,95,98,112,100,103,99
+};
+static const int quantization_table_uv[] = {
+	17,18,24,47,99,99,99,99,
+	18,21,26,66,99,99,99,99,
+	24,26,56,99,99,99,99,99,
+	47,66,99,99,99,99,99,99,
+	99,99,99,99,99,99,99,99,
+	99,99,99,99,99,99,99,99,
+	99,99,99,99,99,99,99,99,
+	99,99,99,99,99,99,99,99
 };
 
 /* For float AA&N IDCT method, divisors are equal to quantization
@@ -300,17 +359,24 @@ int jpeg_write_grayscale (bmp_context_t* context, const char* dest)
 
 	// Luminance table of quality applied quantization table
 	uint8_t y_table[64];
+	uint8_t uv_table[64];
 	for (i=0; i<64; i++) {
-		uint32_t yti = (quzntization_table_y[i] * quality + 50) / 100;
+		uint32_t yti = (quantization_table_y[i] * quality + 50) / 100;
 		y_table[zigzag_index[i]] = (yti < 1) ? 1 : ((yti > 255) ? 255 : yti);
+
+		uint32_t uvti = (quantization_table_uv[i] * quality + 50) / 100;
+		uv_table[zigzag_index[i]] = (uvti < 1) ? 1:((uvti > 255) ? 255 : uvti);
 	}
 
 	// fast dct table
 	float fast_dct_table_y[64];
+	float fast_dct_table_uv[64];
 	for (row = 0, k = 0; row < 8; row++) {
 		for (col = 0; col < 8; col++, k++) {
 			fast_dct_table_y[k] = 
 				1 / (y_table[zigzag_index[k]] * aasf[row] * aasf[col]);
+			fast_dct_table_uv[k] = 
+				1 / (uv_table[zigzag_index[k]] * aasf[row] * aasf[col]);
 		}
 	}
 
@@ -325,12 +391,14 @@ int jpeg_write_grayscale (bmp_context_t* context, const char* dest)
 	fwrite (soi_app0_header, sizeof (soi_app0_header), 1, fp);
 
 	// DQT <marker> <length> 
-	//static const uint8_t dqt_header[] = {0xFF,0xDB,0x00,0x84};
-	static const uint8_t dqt_header[] = {0xFF,0xDB,0x00,0x42}; // +2???
+	static const uint8_t dqt_header[] = {0xFF,0xDB,0x00,0x84};
 	fwrite (dqt_header, sizeof (dqt_header), 1, fp);
-	// DQT table
+	// DQT table Y
 	fputc (0, fp); // <ID>
 	fwrite (y_table, sizeof (y_table), 1, fp); // Table
+	// DQT table UV
+	fputc (1, fp);
+	fwrite (uv_table, sizeof (uv_table), 1, fp);
 
 	// SOF
 	static const uint8_t sof_header[] = {0xFF,0xC0,0x00,0x11};
@@ -343,48 +411,67 @@ int jpeg_write_grayscale (bmp_context_t* context, const char* dest)
 	fputc ((uint8_t)(width >> 8), fp);
 	fputc ((uint8_t)(width && 0xFF) - 1, fp);
 	// SOF-components
-	fputc (0x01, fp); // only Y(luminance)
-	// SOF-component info
-	fputc (0x01, fp); // ID of Y
-	fputc (0x11, fp); // sampling freq.
-	fputc (0x00, fp); // ID of quantization table
+	fputc (0x03, fp); // YUV
+	// SOF-component info <ID-comp,s_freq,ID-qtable>
+	static const uint8_t cinfo[] = {
+		0x01,0x11,0x00, // Y
+		0x02,0x11,0x01, // U
+		0x03,0x11,0x01  // V
+	};
+	fwrite (cinfo, sizeof (cinfo), 1, fp);
 
 	// DHT
-	//static const uint8_t dht_header[] = {0xFF,0xC4,0x01,0xA2};
-	static const uint8_t dht_header[] = {0xFF, 0xC4, 0x00, 0xD0}; //208 + 1
+	static const uint8_t dht_header[] = {0xFF,0xC4,0x01,0xA2};
 	fwrite (dht_header, sizeof (dht_header), 1, fp);
-	// DHT-huffman-codelength-counter-symbols DC luminance
+	// DHT-huffman-codelength-counter-symbols DC Y
 	fputc (0x00, fp); // <DC:Table-ID-0>
-	fwrite (std_dc_luminance_nrcodes+1, sizeof (std_dc_luminance_nrcodes)-1, 1, fp);
+	fwrite (std_dc_luminance_nrcodes+1, 
+		sizeof (std_dc_luminance_nrcodes)-1, 1, fp);
 	fwrite (std_dc_luminance_values, sizeof (std_dc_luminance_values), 1, fp);
-	// DHT-huffman-codelength-counter-symbols AC luminance
+	// DHT-huffman-codelength-counter-symbols AC Y
 	fputc (0x10, fp); // <AC:Table-ID-0>
-	fwrite (std_ac_luminance_nrcodes+1, sizeof (std_ac_luminance_nrcodes)-1, 1, fp);
+	fwrite (std_ac_luminance_nrcodes+1, 
+		sizeof (std_ac_luminance_nrcodes)-1, 1, fp);
 	fwrite (std_ac_luminance_values, sizeof (std_ac_luminance_values), 1, fp);
+	// DHT-huffman-codelength-counter-symbols DC UV
+	fputc (0x01, fp);
+	fwrite (std_dc_chrominance_nrcodes+1, 
+		sizeof (std_dc_chrominance_nrcodes)-1, 1, fp);
+	fwrite (std_dc_chrominance_values, 
+		sizeof (std_dc_chrominance_values), 1, fp);
+	// DHT-huffman-codelength-counter-symbols AC UV
+	fputc (0x11, fp);
+	fwrite (std_ac_chrominance_nrcodes+1, 
+		sizeof (std_ac_chrominance_nrcodes)-1, 1, fp);
+	fwrite (std_ac_chrominance_values, 
+		sizeof (std_ac_chrominance_values), 1, fp);
 
 	// SOS
-	//static const uint8_t sos_header[] = {0xFF,0xDA,0x00,0x0C};
-	static const uint8_t sos_header[] = {0xFF,0xDA,0x00,0x08};
+	static const uint8_t sos_header[] = {0xFF,0xDA,0x00,0x0C};
 	fwrite (sos_header, sizeof (sos_header), 1, fp);
-	// SOS-component-count
-	fputc (0x01, fp);
-	// SOS-scan-description
-	fputc (0x01, fp); // component id
-	fputc (0x00, fp); // <DC-huffman-ID:AC-huffman-ID>
+	// SOS-component-description
+	static const uint8_t component_desc[] = {
+		0x03, // component count
+		0x01, 0x00, // Y component id, <DC-huffman-ID:AC-huffman-ID>
+		0x02, 0x11, // U component id, <DC-huffman-ID:AC-huffman-ID>
+		0x03, 0x11  // V component id, <DC-huffman-ID:AC-huffman-ID>
+	};
+	fwrite (component_desc, sizeof (component_desc), 1, fp);
 	// SOS-DCT-optimize-value
 	static const uint8_t sos_dct_val[] = {0x00,0x3F,0x00};
 	fwrite (sos_dct_val, sizeof (sos_dct_val), 1, fp);
 
-
 	// encode 8x8 macroblocks
 	uint32_t bit_buffer = 0, num_of_bits = 0, pos=0;
-	int32_t dc_y = 0; // dc component of Y
+	int32_t dc_y = 0, dc_u = 0, dc_v = 0; // dc component of Y
 
 	// for blocks
 	for (y = 0; y < height; y += 8) {
 		for (x = 0; x < width; x += 8) {
-
-			float dct_unit_y[64]; // 8x8 dct unit of Y
+			// 8x8 dct unit
+			float dct_unit_y[64];
+			float dct_unit_u[64];
+			float dct_unit_v[64];
 
 			// compute dct unit
 			for (row = y, pos = 0; row < y+8; row++) {
@@ -401,17 +488,20 @@ int jpeg_write_grayscale (bmp_context_t* context, const char* dest)
 					float g = context->channel_green[p];
 					float b = context->channel_blue[p];
 
-					// rgb to y(luminance)
-					dct_unit_y[pos] = +0.29900f * r
-									  +0.58700f * g
-									  +0.11400f * b 
-									  - 128;
+					// rgb to yuv
+					dct_unit_y[pos] = +0.29900f*r+0.58700f*g+0.11400f*b-128;
+					dct_unit_u[pos] = -0.14700f*r-0.28900f*g+0.43600f*b;
+					dct_unit_v[pos] = +0.61500f*r-0.51500f*g-0.10000f*b;
 				}
 			}
 
 			// encode and write
 			dc_y = jpeg_process_dct_unit (&bit_buffer, &num_of_bits, dct_unit_y, 
 				fast_dct_table_y, dc_y, huffman_dc_y, huffman_ac_y, fp);
+			dc_u = jpeg_process_dct_unit (&bit_buffer, &num_of_bits, dct_unit_u,
+				fast_dct_table_uv, dc_u, huffman_dc_uv, huffman_ac_uv, fp);
+			dc_v = jpeg_process_dct_unit (&bit_buffer, &num_of_bits, dct_unit_v,
+				fast_dct_table_uv, dc_v, huffman_dc_uv, huffman_ac_uv, fp);
 		}
 	}
 

@@ -10,11 +10,13 @@ INCLUDES =
 
 SRCS = main.c \
 		bmp.c \
-		jpegenc.c
+		jpegenc.c \
+		jpeg_exp.c
 
 OBJS = main.o \
 		bmp.o \
-		jpegenc.o
+		jpegenc.o \
+		jpeg_exp.c
 
 all: $(PROGRAM)
 

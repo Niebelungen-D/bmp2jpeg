@@ -283,11 +283,6 @@ static int32_t jpeg_process_dct_unit (uint32_t* bit_buffer,
 			(int32_t)((val < 0) ? ceilf (val - 0.5f) : floorf (val + 0.5f));
 	}
 
-	// -------------------------------------------------------------------------
-	// experiments here
-	// -------------------------------------------------------------------------
-
-
 	// encode dc value
 	int32_t diff = unit_out[0] - dc_value;
 	if (diff == 0) {

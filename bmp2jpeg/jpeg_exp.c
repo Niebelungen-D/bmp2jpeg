@@ -20,7 +20,7 @@
 #include <endian.h>
 
 #include "bmp.h"
-#include "jpegenc.h"
+#include "jpeg_exp.h"
 
 #define JPEG_QUALITY_PERCENT 100
 
@@ -251,7 +251,7 @@ static void jpeg_dct1 (float* d0, float* d1, float* d2, float* d3,
 static int32_t jpeg_process_dct_unit (uint32_t* bit_buffer, 
 	uint32_t* num_of_bits, float* dct_unit, float* fast_dct_table, 
 	int32_t dc_value, const uint16_t huffman_dc[256][2], 
-	const uint16_t huffman_ac[256][2], FILE* fp)
+	const uint16_t huffman_ac[256][2], FILE* fp, uint8_t step, uint8_t wipe)
 {
 	uint32_t i;
 
@@ -275,6 +275,41 @@ static int32_t jpeg_process_dct_unit (uint32_t* bit_buffer,
 			dct_unit + data_offset + 48, dct_unit + data_offset + 56);
 	}
 
+// -----------------------------------------------------------------------------
+// case 2 experiments here
+// - experiment 1: along u axis
+// - experiment 2: along v axis
+// - experiment 3: along u,v axis				
+// -----------------------------------------------------------------------------
+#ifdef EXPERIMENT_CASE_2
+#ifdef EXPERIMENT_NUM_1
+	for (i=0; i<64; i++) {
+		// horizontal
+		if (i % 8 > step) {
+			dct_unit[i] = 0;
+		}
+	}
+#endif
+#ifdef EXPERIMENT_NUM_2
+	for (i=0; i<64; i++) {
+		// vertical
+		if (i / 8 > step) {
+			dct_unit[i] = 0;
+		}
+	}
+#endif
+#ifdef EXPERIMENT_NUM_3
+	for (i=0; i<64; i++) {
+		if (i % 8 > step) {
+			dct_unit[i] = 0;
+		}
+		if (i / 8 > step) {
+			dct_unit[i] = 0;
+		}
+	}
+#endif
+#endif
+
 	// quantize/descale/zigzag the coefficients
 	int32_t unit_out[64];
 	for (i=0; i<64; i++) {
@@ -283,10 +318,13 @@ static int32_t jpeg_process_dct_unit (uint32_t* bit_buffer,
 			(int32_t)((val < 0) ? ceilf (val - 0.5f) : floorf (val + 0.5f));
 	}
 
-	// -------------------------------------------------------------------------
-	// case 2 experiments here
-	// -------------------------------------------------------------------------
-
+// -----------------------------------------------------------------------------
+// case 1 experiments here (part B)
+// - if wipe variable is set then 64 coefficients will be zero	
+// -----------------------------------------------------------------------------
+	if (wipe) {
+		memset (unit_out, 0x00, sizeof (unit_out));
+	}
 
 	// encode dc value
 	int32_t diff = unit_out[0] - dc_value;
@@ -340,7 +378,7 @@ static int32_t jpeg_process_dct_unit (uint32_t* bit_buffer,
 	return unit_out[0];
 }
 
-int jpeg_write_grayscale (bmp_context_t* context, const char* dest)
+int jpeg_exp_write (bmp_context_t* context, const char* dest, int step)
 {
 	uint32_t i, j, k, row, col, x, y;
 
@@ -474,10 +512,6 @@ int jpeg_write_grayscale (bmp_context_t* context, const char* dest)
 			float dct_unit_u[64];
 			float dct_unit_v[64];
 
-			// -----------------------------------------------------------------
-			// case 1 experiments here
-			// -----------------------------------------------------------------
-
 			// compute dct unit
 			for (row = y, pos = 0; row < y+8; row++) {
 				for (col = x; col < x+8; col++, pos++) {
@@ -499,14 +533,44 @@ int jpeg_write_grayscale (bmp_context_t* context, const char* dest)
 					dct_unit_v[pos] = +0.61500f*r-0.51500f*g-0.10000f*b;
 				}
 			}
-
+// -----------------------------------------------------------------------------
+// case 1 experiments here (code part A)
+// - experiment 1: along u axis
+// - experiment 2: along v axis
+// - experiment 3: along u,v axis			
+// - if wipe variable is set then 64 coefficients will be zero
+// -----------------------------------------------------------------------------
+			uint8_t wipe = 0;
+#ifdef EXPERIMENT_CASE_1
+#ifdef EXPERIMENT_NUM_1
+			uint32_t step_idx = (step + 1) * (64);
+			if (x >= step_idx) {
+				// turn into zero
+				wipe = 1;
+			}
+#endif
+#ifdef EXPERIMENT_NUM_2
+			uint32_t step_idx = (step + 1) * (64);
+			if (y >= step_idx) {
+				// turn into zero
+				wipe = 1;
+			}
+#endif
+#ifdef EXPERIMENT_NUM_3
+			uint32_t step_idx = (step + 1) * (64);
+			if (y >= step_idx || x >= step_idx) {
+				// turn into zero
+				wipe = 1;
+			}
+#endif
+#endif
 			// encode and write
 			dc_y = jpeg_process_dct_unit (&bit_buffer, &num_of_bits, dct_unit_y, 
-				fast_dct_table_y, dc_y, huffman_dc_y, huffman_ac_y, fp);
+				fast_dct_table_y, dc_y, huffman_dc_y, huffman_ac_y, fp, step, wipe);
 			dc_u = jpeg_process_dct_unit (&bit_buffer, &num_of_bits, dct_unit_u,
-				fast_dct_table_uv, dc_u, huffman_dc_uv, huffman_ac_uv, fp);
+				fast_dct_table_uv, dc_u, huffman_dc_uv, huffman_ac_uv, fp, step, wipe);
 			dc_v = jpeg_process_dct_unit (&bit_buffer, &num_of_bits, dct_unit_v,
-				fast_dct_table_uv, dc_v, huffman_dc_uv, huffman_ac_uv, fp);
+				fast_dct_table_uv, dc_v, huffman_dc_uv, huffman_ac_uv, fp, step, wipe);
 		}
 	}
 

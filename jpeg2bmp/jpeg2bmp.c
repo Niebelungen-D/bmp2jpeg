@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-
 #include <jpeglib.h>
 
 /* we will be using this uninitialized pointer later to store raw, uncompressd image */
@@ -151,9 +150,9 @@ int read_jpeg_file( char *filename )
     jpeg_start_decompress( &cinfo );
 
     /* allocate memory to hold the uncompressed image */
-    raw_image = (unsigned char*)malloc( cinfo.output_width*cinfo.output_height*cinfo.num_components );
+    raw_image = (unsigned char*)malloc (cinfo.output_width*cinfo.output_height*cinfo.num_components);
     /* now actually read the jpeg into the raw buffer */
-    row_pointer[0] = (unsigned char *)malloc( cinfo.output_width*cinfo.num_components );
+    row_pointer[0] = (unsigned char *)malloc (cinfo.output_width*cinfo.num_components);
     /* read one scan line at a time */
     while( cinfo.output_scanline < cinfo.image_height )
     {

@@ -284,7 +284,7 @@ static int32_t jpeg_process_dct_unit (uint32_t* bit_buffer,
 	}
 
 	// -------------------------------------------------------------------------
-	// experiments here
+	// case 2 experiments here
 	// -------------------------------------------------------------------------
 
 
@@ -473,6 +473,10 @@ int jpeg_write_grayscale (bmp_context_t* context, const char* dest)
 			float dct_unit_y[64];
 			float dct_unit_u[64];
 			float dct_unit_v[64];
+
+			// -----------------------------------------------------------------
+			// case 1 experiments here
+			// -----------------------------------------------------------------
 
 			// compute dct unit
 			for (row = y, pos = 0; row < y+8; row++) {

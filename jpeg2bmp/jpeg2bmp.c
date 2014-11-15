@@ -2,11 +2,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 #include <jpeglib.h>
 
 /* we will be using this uninitialized pointer later to store raw, uncompressd image */
-unsigned char *raw_image = NULL;
+uint8_t *raw_image = NULL;
 
 /* dimensions of the image we want to write */
 int width;
@@ -14,96 +15,94 @@ int height;
 int bytes_per_pixel;   /* or 1 for GRACYSCALE images */
 int color_space; /* or JCS_GRAYSCALE for grayscale images */
 
-typedef struct {
-     long filesize;
-     char reserved[2];
-     long headersize;
-     long infoSize;
-     long width;
-     long depth;
-     short biPlanes;
-     short bits;
-     long biCompression;
-     long biSizeImage;
-     long biXPelsPerMeter;
-     long biYPelsPerMeter;
-     long biClrUsed;
-     long biClrImportant;
-} BMPHEAD;
+#define BMP_HEADER_SIZE 54
+typedef struct __bmp_header {
+
+  uint16_t padding;
+  uint16_t signature;
+  uint32_t bmp_file_size;
+  uint16_t reserve_1;
+  uint16_t reserve_2;
+  uint32_t soi_offset;
+  uint32_t bmp_header_size;
+  uint32_t bmp_width;
+  uint32_t bmp_height;  
+  uint16_t number_of_planes;
+  uint16_t bpp;
+  uint32_t compression_type;
+  uint32_t img_data_size;
+  uint32_t horizontal_ppm;
+  uint32_t vertical_ppm;
+  uint32_t number_of_colors;
+  uint32_t number_of_important_colors;
+
+} bmp_header_t;
 
 int write_bmp_file( char *filename )
 {
-    BMPHEAD bh;
+    bmp_header_t bh;
 
-    memset ((char *)&bh,0,sizeof(BMPHEAD)); /* sets everything to 0 */
+    memset (&bh, 0, BMP_HEADER_SIZE); /* sets everything to 0 */
 
     //bh.filesize  =   calculated size of your file (see below)
     //bh.reserved  = two zero bytes
-    bh.headersize  = 54L;//  (for 24 bit images)
-    bh.infoSize  =  0x28L;//  (for 24 bit images)
-    bh.width     = width ;//in pixels of your image
-    bh.depth     = height;// in pixels of your image
-    bh.biPlanes  =  1 ;//(for 24 bit images)
-    bh.bits      = 24 ;//(for 24 bit images)
-    bh.biCompression = 0L;;//  (no compression)
+    memcpy (&bh.signature, "BM", 2);
 
-    int bytesPerLine;
+    bh.bmp_file_size    = BMP_HEADER_SIZE + 3 * width * height;
+    bh.soi_offset       = 0x36;//  (for 24 bit images)
+    bh.bmp_header_size  = 0x28;//  (for 24 bit images)
+    bh.bmp_width        = width ;//in pixels of your image
+    bh.bmp_height       = height;// in pixels of your image
+    bh.number_of_planes = 0x01;//(for 24 bit images)
+    bh.bpp              = 0x18;//(for 24 bit images)
+    bh.compression_type = 0;//  (no compression)
+    bh.img_data_size    = bh.bmp_file_size - BMP_HEADER_SIZE;
 
-    bytesPerLine = width * 3;  /* (for 24 bit images) */
-    /* round up to a dword boundary */
-    if (bytesPerLine & 0x0003) 
-      {
-      bytesPerLine |= 0x0003;
-      ++bytesPerLine;
-      }
-    bh.filesize=bh.headersize+(long)bytesPerLine*bh.depth;
+    
 
-    FILE * bmpfile;
-
-    printf("Bytes per line : %d\n", bytesPerLine);
-
-    bmpfile = fopen(filename, "wb");
-    if (bmpfile == NULL)
-      {
+    FILE* bmpfile = fopen(filename, "wb");
+    if (bmpfile == NULL) {
       printf("Error opening output file\n");
       /* -- close all open files and free any allocated memory -- */
       exit (1);
-      }
-    fwrite("BM",1,2,bmpfile);
-    fwrite((char *)&bh, 1, sizeof (bh), bmpfile);
+    }
+    
+    // write header
+    fwrite (&bh.signature, 1, BMP_HEADER_SIZE, bmpfile);
 
-    char *linebuf;
-      
-    linebuf = (char *) calloc(1, bytesPerLine);
-    if (linebuf == NULL)
-      {
-       printf ("Error allocating memory\n");
-      free(raw_image);
-       /* -- close all open files and free any allocated memory -- */
-       exit (1);   
-      }
+    // write image
+    uint32_t bytes_per_line = 3 * width;
+    uint32_t bytes_per_pixel = 3;
+    int32_t line, x;
 
-
-    int line,x;
-
-    for (line = height-1; line >= 0; line --)
-      {
-      /* fill line linebuf with the image data for that line */
-    for( x =0 ; x < width; x++ )
-    {
-     *(linebuf+x*bytes_per_pixel) = *(raw_image+(x+line*width)*bytes_per_pixel+2);
-     *(linebuf+x*bytes_per_pixel+1) = *(raw_image+(x+line*width)*bytes_per_pixel+1);
-     *(linebuf+x*bytes_per_pixel+2) = *(raw_image+(x+line*width)*bytes_per_pixel+0);
+    uint8_t* line_buffer;
+    line_buffer = (uint8_t *) calloc(1, bytes_per_line);
+    if (line_buffer == NULL) {
+        printf ("Error allocating memory\n");
+        free(raw_image);
+         /* -- close all open files and free any allocated memory -- */
+         exit (1);   
     }
 
-      /* remember that the order is BGR and if width is not a multiple
-         of 4 then the last few bytes may be unused
-      */
-      fwrite(linebuf, 1, bytesPerLine, bmpfile);
-      }
-    free(linebuf);
-    fclose(bmpfile);
+    for (line = height-1; line >= 0; line --) {
+        /* fill line line_buffer with the image data for that line */
+        for( x =0 ; x < width; x++ ) {
+            *(line_buffer + x * bytes_per_pixel) = 
+                *(raw_image + (x + line * width) * bytes_per_pixel + 2);
+            *(line_buffer+x*bytes_per_pixel+1) = 
+                *(raw_image + (x + line * width) * bytes_per_pixel + 1);
+            *(line_buffer+x*bytes_per_pixel+2) = 
+                *(raw_image + (x + line * width) * bytes_per_pixel + 0);
+        }
 
+        /* remember that the order is BGR and if width is not a multiple
+         * of 4 then the last few bytes may be unused
+         */
+        fwrite(line_buffer, 1, bytes_per_line, bmpfile);
+    }
+
+    free (line_buffer);
+    fclose (bmpfile);
 }
 
 
@@ -130,8 +129,8 @@ int read_jpeg_file( char *filename )
 
     if ( !infile )
     {
-    printf("Error opening jpeg file %s\n!", filename );
-    return -1;
+      printf("Error opening jpeg file %s\n!", filename );
+      return -1;
     }
     /* here we set up the standard libjpeg error handler */
     cinfo.err = jpeg_std_error( &jerr );
@@ -158,9 +157,9 @@ int read_jpeg_file( char *filename )
     /* read one scan line at a time */
     while( cinfo.output_scanline < cinfo.image_height )
     {
-    jpeg_read_scanlines( &cinfo, row_pointer, 1 );
-    for( i=0; i<cinfo.image_width*cinfo.num_components;i++) 
-     raw_image[location++] = row_pointer[0][i];
+        jpeg_read_scanlines( &cinfo, row_pointer, 1 );
+        for( i=0; i<cinfo.image_width*cinfo.num_components;i++) 
+        raw_image[location++] = row_pointer[0][i];
     }
     /* wrap up decompression, destroy objects, free pointers and close open files */
     jpeg_finish_decompress( &cinfo );
@@ -177,7 +176,8 @@ int main (int argc,char **argv)
     int x,y;
 
     if(argc != 3){ 
-      printf("Usage: %s source.jpg dest.bmp",argv[0]); return -1; 
+      printf("Usage: %s source.jpg dest.bmp\n",argv[0]); 
+      return -1; 
     }
     x = y = 0;
 
